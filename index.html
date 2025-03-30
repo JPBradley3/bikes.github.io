@@ -449,12 +449,17 @@
             // Initialize the map
             loadMap();
 
+            // Detect if the user is on a mobile device
+            const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+            // Set geolocation options based on the device type
+            const geoOptions = isMobile
+                ? { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 } // Frequent updates for mobile
+                : { enableHighAccuracy: false, maximumAge: 60000, timeout: 30000 }; // Less frequent updates for PC
+
             // Start watching the user's location
             if (navigator.geolocation) {
-                navigator.geolocation.watchPosition(updateLocation, showError, {
-                    enableHighAccuracy: true,
-                    maximumAge: 0
-                });
+                navigator.geolocation.watchPosition(updateLocation, showError, geoOptions);
             } else {
                 alert("Geolocation is not supported by your browser.");
             }
