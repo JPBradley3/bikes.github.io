@@ -393,8 +393,11 @@
 
             const lat = position.coords.latitude;
             const lon = position.coords.longitude;
-            const speed = position.coords.speed ? position.coords.speed * 2.23694 : 0;
+            const speed = position.coords.speed ? position.coords.speed * 2.23694 : 0; // Convert m/s to mph
             const heading = position.coords.heading; // Heading in degrees
+
+            // Log the location for debugging
+            console.log(`Latitude: ${lat}, Longitude: ${lon}, Speed: ${speed}, Heading: ${heading}`);
 
             // Update speed display
             document.getElementById("speed").textContent = speed.toFixed(1);
@@ -406,6 +409,8 @@
             // Rotate the marker if heading is available
             if (heading !== null && !isNaN(heading)) {
                 window.marker.setRotationAngle(heading);
+            } else {
+                console.warn("Heading is unavailable. Marker rotation will not update.");
             }
 
             // Only update cross streets if position has changed significantly
@@ -452,10 +457,12 @@
             // Detect if the user is on a mobile device
             const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
-            // Set geolocation options based on the device type
-            const geoOptions = isMobile
-                ? { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 } // Frequent updates for mobile
-                : { enableHighAccuracy: false, maximumAge: 60000, timeout: 30000 }; // Less frequent updates for PC
+            // Set geolocation options for high accuracy
+            const geoOptions = {
+                enableHighAccuracy: true, // Ensure high accuracy
+                maximumAge: 0,           // Prevent cached location data
+                timeout: isMobile ? 10000 : 30000 // Shorter timeout for mobile
+            };
 
             // Start watching the user's location
             if (navigator.geolocation) {
