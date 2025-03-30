@@ -351,8 +351,10 @@
         function loadMap() {
             const isDarkMode = document.documentElement.getAttribute("data-theme") === "dark";
 
-            // Initialize the map
-            window.map = L.map('map');
+            // Initialize the map without zoom control
+            window.map = L.map('map', {
+                zoomControl: false // Disable zoom buttons
+            });
 
             // Add CartoDB tile layers for light and dark modes
             const lightTileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
@@ -379,8 +381,6 @@
 
             // Use L.marker with the rotatedMarker plugin
             window.marker = L.marker([0, 0], { icon, rotationAngle: 0 }).addTo(window.map);
-
-            console.log(typeof L.Marker.prototype.setRotationAngle);
 
             isMapInitialized = true;
         }
