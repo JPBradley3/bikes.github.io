@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bicycle Tracker</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <style>
+        :root {
+            --bg-color: rgba(255, 255, 255, 0.95);
+            --text-color: #2c3e50;
+            --label-color: #666;
+            --border-color: #e0e0e0;
+            --hover-color: #2980b9;
+        }
+
+        [data-theme="dark"] {
+            --bg-color: rgba(33, 33, 33, 0.95);
+            --text-color: #ffffff;
+            --label-color: #cccccc;
+            --border-color: #444444;
+            --hover-color: #3498db;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        #map {
+            width: 100%;
+            height: 100vh;
+            z-index: 1;
+        }
+
+        #info {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--bg-color);
+            padding: 15px 25px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            min-width: 280px;
+            backdrop-filter: blur(5px);
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        #theme-toggle {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            color: var(--text-color);
+            cursor: pointer;
+            font-size: 1.2em;
+            padding: 5px;
+            z-index: 1;
+            transition: color 0.3s ease;
+        }
+
+        #neighborhood-title {
+            margin: 0 0 15px 0;
+            font-size: 1.5em;
+            color: var(--text-color);
+            text-align: center;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 10px;
+            transition: color 0.3s ease;
+        }
+
+        .data-container {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .data-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1.1em;
+        }
+
+        .data-row label {
+            color: var(--label-color);
+            font-weight: 500;
+            min-width: 140px;
+            transition: color 0.3s ease;
+        }
+
+        #cross-streets {
+            color: var(--text-color);
+            font-weight: 600;
+            transition: color 0.3s ease;
+        }
+
+        #speed {
+            color: var(--text-color);
+            font-weight: 600;
+            min-width: 50px;
+            text-align: right;
+            transition: color 0.3s ease;
+        }
+
+        .unit {
+            color: var(--label-color);
+            font-size: 0.9em;
+            transition: color 0.3s ease;
+        }
+
+        #start-button {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 15px 30px;
+            font-size: 1.2em;
+            font-weight: 600;
+            color: white;
+            background-color: #3498db;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            z-index: 1001;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        #start-button:hover {
+            background-color: var(--hover-color);
+            transform: translate(-50%, -50%) scale(1.05);
+        }
+
+        #start-button:active {
+            transform: translate(-50%, -50%) scale(0.95);
+        }
+
+        @media (max-width: 600px) {
+            #info {
+                width: 85%;
+                padding: 12px;
+            }
+
+            .data-row {
+                font-size: 1em;
+            }
+
+            #neighborhood-title {
+                font-size: 1.3em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="info" style="display: none;">
+        <button id="theme-toggle">🌓</button>
+        <h1 id="neighborhood-title">Loading Area...</h1>
+        <div class="data-container">
+            <div class="data-row">
+                <label>Nearest Cross Streets:</label>
+                <span id="cross-streets">Loading...</span>
+            </div>
+            <div class="data-row">
+                <label>Speed:</label>
+                <span id="speed">0</span>
+                <span class="unit">mph</span>
+            </div>
+        </div>
+    </div>
+    <div id="map" style="display: none;"></div>
+    <button id="start-button">Start Tracking</button>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-rotatedmarker/0.2.0/leaflet.rotatedMarker.min.js"></script>
+    <script>
+        let lastPosition = null;
+        let debounceTimer;
+        let isMapInitialized = false;
+        let lastRequestTime = 0;
+        const MIN_REQUEST_INTERVAL = 1500; // 1.5 seconds minimum between requests
+        const REQUEST_QUEUE = [];
+        let isProcessingQueue = false;
+
+        async function processRequestQueue() {
+            if (isProcessingQueue || REQUEST_QUEUE.length === 0) return;
+
+            isProcessingQueue = true;
+
+            while (REQUEST_QUEUE.length > 0) {
+                const { url, resolve, reject } = REQUEST_QUEUE[0];
+
+                try {
+                    const now = Date.now();
+                    const timeToWait = Math.max(0, MIN_REQUEST_INTERVAL - (now - lastRequestTime));
+
+                    if (timeToWait > 0) {
+                        await new Promise(r => setTimeout(r, timeToWait));
+                    }
+
+                    const response = await fetch(url, {
+                        headers: {
+                            'User-Agent': 'BicycleTracker/1.0'
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    lastRequestTime = Date.now();
+                    resolve(data);
+
+                } catch (error) {
+                    reject(error);
+                }
+
+                REQUEST_QUEUE.shift();
+            }
+
+            isProcessingQueue = false;
+        }
+
+        function makeRequest(url) {
+            return new Promise((resolve, reject) => {
+                REQUEST_QUEUE.push({ url, resolve, reject });
+                processRequestQueue();
+            });
+        }
+
+        function debounce(func, delay) {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(func, delay);
+        }
+
+        async function fetchCrossStreets(lat, lon) {
+            const validRoadTypes = ["Ave", "St", "Blvd", "Hwy", "Rd", "Dr", "Ln", "Ct", "Pl", "Way", "Pkwy", "Cir", "Terrace", "Alley"];
+
+            try {
+                // Step 1: Reverse geocoding to get current location info
+                const reverseData = await makeRequest(
+                    `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&addressdetails=1`
+                );
+
+                if (!reverseData || !reverseData.address) {
+                    throw new Error("Invalid reverse geocoding response");
+                }
+
+                // Update neighborhood title
+                const neighborhood = reverseData.address.neighbourhood ||
+                                     reverseData.address.suburb ||
+                                     reverseData.address.district ||
+                                     reverseData.address.city_district ||
+                                     reverseData.address.city ||
+                                     'Current Location';
+
+                document.getElementById("neighborhood-title").textContent = neighborhood;
+
+                const currentRoad = reverseData.address.road || "Unknown";
+
+                if (currentRoad === "Unknown") {
+                    document.getElementById("cross-streets").textContent = "Location unavailable";
+                    return;
+                }
+
+                // Step 2: Search for nearby roads
+                const delta = 0.002; // Smaller search area for more relevant results (~200m)
+                const searchData = await makeRequest(
+                    `https://nominatim.openstreetmap.org/search?` +
+                    `format=json&` +
+                    `street=${encodeURIComponent(currentRoad)}&` +
+                    `viewbox=${lon - delta},${lat - delta},${lon + delta},${lat + delta}&` +
+                    `bounded=1&` +
+                    `addressdetails=1&` +
+                    `limit=20`
+                );
+
+                if (!Array.isArray(searchData)) {
+                    throw new Error("Invalid search response");
+                }
+
+                // Find nearby intersecting streets
+                const nearbyStreets = new Set();
+                for (let place of searchData) {
+                    if (place.address && place.address.road) {
+                        const roadName = place.address.road;
+                        if (roadName.toLowerCase() !== currentRoad.toLowerCase()) {
+                            if (validRoadTypes.some(type =>
+                                roadName.toLowerCase().includes(type.toLowerCase()) ||
+                                currentRoad.toLowerCase().includes(type.toLowerCase())
+                            )) {
+                                nearbyStreets.add(roadName);
+                            }
+                        }
+                    }
+                }
+
+                // If no intersecting streets are found, perform a broader search
+                if (nearbyStreets.size === 0) {
+                    const broaderDelta = 0.005; // Larger search area (~500m)
+                    const broaderSearch = await makeRequest(
+                        `https://nominatim.openstreetmap.org/search?` +
+                        `format=json&` +
+                        `q=intersection&` +
+                        `viewbox=${lon - broaderDelta},${lat - broaderDelta},${lon + broaderDelta},${lat + broaderDelta}&` +
+                        `bounded=1&` +
+                        `addressdetails=1&` +
+                        `limit=20`
+                    );
+
+                    if (Array.isArray(broaderSearch)) {
+                        for (let place of broaderSearch) {
+                            if (place.address && place.address.road) {
+                                const roadName = place.address.road;
+                                if (roadName.toLowerCase() !== currentRoad.toLowerCase()) {
+                                    if (validRoadTypes.some(type =>
+                                        roadName.toLowerCase().includes(type.toLowerCase()) ||
+                                        currentRoad.toLowerCase().includes(type.toLowerCase())
+                                    )) {
+                                        nearbyStreets.add(roadName);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Update the display
+                if (nearbyStreets.size > 0) {
+                    const nearestStreet = Array.from(nearbyStreets)[0];
+                    document.getElementById("cross-streets").textContent =
+                        `${currentRoad} & ${nearestStreet}`;
+                } else {
+                    document.getElementById("cross-streets").textContent =
+                        `${currentRoad} (No intersection found)`;
+                }
+
+            } catch (error) {
+                console.error("Error fetching location data:", error);
+                document.getElementById("cross-streets").textContent = "Location unavailable";
+                document.getElementById("neighborhood-title").textContent = "Current Location";
+            }
+        }
+
+        function loadMap() {
+            const isDarkMode = document.documentElement.getAttribute("data-theme") === "dark";
+
+            // Initialize the map
+            window.map = L.map('map');
+
+            // Add CartoDB tile layers for light and dark modes
+            const lightTileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
+                subdomains: 'abcd',
+                maxZoom: 19
+            });
+
+            const darkTileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
+                subdomains: 'abcd',
+                maxZoom: 19
+            });
+
+            // Add the appropriate tile layer based on the theme
+            const tileLayer = isDarkMode ? darkTileLayer : lightTileLayer;
+            tileLayer.addTo(window.map);
+
+            // Add a rotated marker icon
+            const icon = L.icon({
+                iconUrl: 'https://cdn-icons-png.flaticon.com/512/684/684908.png',
+                iconSize: [25, 25]
+            });
+
+            // Use L.marker with the rotatedMarker plugin
+            window.marker = L.marker([0, 0], { icon, rotationAngle: 0 }).addTo(window.map);
+
+            console.log(typeof L.Marker.prototype.setRotationAngle);
+
+            isMapInitialized = true;
+        }
+
+        function updateLocation(position) {
+            if (!isMapInitialized) {
+                console.error("Map is not initialized yet.");
+                return;
+            }
+
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+            const speed = position.coords.speed ? position.coords.speed * 2.23694 : 0;
+            const heading = position.coords.heading; // Heading in degrees
+
+            // Update speed display
+            document.getElementById("speed").textContent = speed.toFixed(1);
+
+            // Update the map view to center on the user's location
+            window.map.setView([lat, lon], 19); // Zoom level 19 for maximum zoom
+            window.marker.setLatLng([lat, lon]);
+
+            // Rotate the marker if heading is available
+            if (heading !== null && !isNaN(heading)) {
+                window.marker.setRotationAngle(heading);
+            }
+
+            // Only update cross streets if position has changed significantly
+            if (!lastPosition || 
+                Math.abs(lastPosition.lat - lat) > 0.0001 || 
+                Math.abs(lastPosition.lon - lon) > 0.0001) {
+                lastPosition = { lat, lon };
+                debounce(() => fetchCrossStreets(lat, lon), 2000);
+            }
+        }
+
+        function showError(error) {
+            console.error("Error getting location:", error);
+            alert("Error retrieving location. Please enable location services.");
+        }
+
+        // Update the map style when the theme changes
+        document.getElementById("theme-toggle").addEventListener("click", () => {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute("data-theme");
+            const newTheme = currentTheme === "dark" ? "light" : "dark";
+            html.setAttribute("data-theme", newTheme);
+            localStorage.setItem("theme", newTheme);
+
+            // Automatically refresh the page after changing the theme
+            location.reload();
+        });
+
+        // Load saved theme preference
+        document.addEventListener("DOMContentLoaded", () => {
+            const savedTheme = localStorage.getItem("theme") || "light";
+            document.documentElement.setAttribute("data-theme", savedTheme);
+        });
+
+        function startTracking() {
+            // Hide the start button and show the map and info panel
+            document.getElementById("start-button").style.display = "none";
+            document.getElementById("map").style.display = "block";
+            document.getElementById("info").style.display = "block";
+
+            // Initialize the map
+            loadMap();
+
+            // Start watching the user's location
+            if (navigator.geolocation) {
+                navigator.geolocation.watchPosition(updateLocation, showError, {
+                    enableHighAccuracy: true,
+                    maximumAge: 0
+                });
+            } else {
+                alert("Geolocation is not supported by your browser.");
+            }
+        }
+
+        // Attach the event listener to the Start Tracking button
+        document.getElementById("start-button").addEventListener("click", startTracking);
+    </script>
+</body>
+</html>
