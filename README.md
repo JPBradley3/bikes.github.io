@@ -3,6 +3,8 @@
 ## Introduction
 The Bicycle Tracking Web App is a real-time tracking system that monitors the location, speed, and direction of bicycles. It utilizes Django, WebSockets, and mapping APIs to provide an interactive user experience.
 
+Please navigate to jpbradley.website through your web browser to view and interact with the live application.
+
 ## Features
 - **Real-time Updates:** Tracks bicycle location, speed, and direction instantly using WebSockets.
 - **Map Integration:** Displays bicycle routes on an interactive map.
