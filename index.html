@@ -32,7 +32,17 @@
         #map {
             width: 100%;
             height: 100vh;
+            display: block !important;
             z-index: 1;
+            transition: filter 0.3s ease; /* Smooth transition for theme changes */
+        }
+
+        [data-theme="dark"] #map {
+            filter: brightness(1.2) contrast(0.83); /* Darken blacks and lighten whites */
+        }
+
+        [data-theme="light"] #map {
+            filter: brightness(1) contrast(1); /* Reset to default for light mode */
         }
 
         #info {
@@ -45,13 +55,12 @@
             min-width: 240px;
             backdrop-filter: blur(5px); /* Add blur effect for better readability */
             transition: background-color 0.3s ease, color 0.3s ease;
+            display: block !important;
         }
 
         /* Default position for portrait mode (bottom center) */
         #info {
             bottom: 15px;
-            left: 50%;
-            transform: translateX(-50%);
         }
 
         /* Landscape mode: position at the bottom left */
@@ -63,11 +72,31 @@
             }
         }
 
-        #theme-toggle-container {
+        #theme-toggle-container,
+        #fullscreen-toggle-container {
+            display: flex;
+            flex-direction: column; /* Stack label above the toggle */
+            align-items: center; /* Center align the label and toggle */
             position: absolute;
-            top: 10px;
-            right: 10px;
             z-index: 1000;
+        }
+
+        #theme-toggle-container {
+            top: 10px;
+            right: 10px; /* Position theme toggle in the top-right corner */
+        }
+
+        #fullscreen-toggle-container {
+            top: 10px;
+            left: 10px; /* Position fullscreen toggle in the top-left corner */
+        }
+
+        #theme-label,
+        #fullscreen-label {
+            margin-bottom: 5px; /* Add spacing between the label and toggle */
+            font-size: 0.9em; /* Slightly smaller font size */
+            color: var(--text-color); /* Use the theme's text color */
+            text-align: center;
         }
 
         .switch {
@@ -90,7 +119,7 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background-color: var(--border-color);
+            background-color: #808080; /* Grayscale background */
             transition: 0.4s;
             border-radius: 24px;
         }
@@ -102,16 +131,17 @@
             width: 18px;
             left: 3px;
             bottom: 3px;
-            background-color: white;
+            background-color: #d3d3d3; /* Light gray toggle knob */
             transition: 0.4s;
             border-radius: 50%;
         }
 
         input:checked + .slider {
-            background-color: var(--hover-color);
+            background-color: #a0a0a0; /* Lighter grayscale when toggled */
         }
 
         input:checked + .slider:before {
+            background-color: #f0f0f0; /* Even lighter gray for the knob when toggled */
             transform: translateX(26px);
         }
 
@@ -210,17 +240,13 @@
     </style>
 </head>
 <body>
+    <button id="start-button">Start Tracking</button>
+    <div id="map" style="width: 100%; height: 100vh; display: none;"></div>
     <div id="info" style="display: none;">
-        <div id="theme-toggle-container">
-            <label class="switch">
-                <input type="checkbox" id="theme-toggle">
-                <span class="slider"></span>
-            </label>
-        </div>
         <h1 id="neighborhood-title">Loading Area...</h1>
         <div class="data-container">
             <div class="data-row">
-                <label>Nearest Cross Streets:</label>
+                <label>Nearest Intersection:</label>
                 <span id="cross-streets">Loading...</span>
             </div>
             <div class="data-row">
@@ -230,8 +256,20 @@
             </div>
         </div>
     </div>
-    <div id="map" style="display: none;"></div>
-    <button id="start-button">Start Tracking</button>
+    <div id="theme-toggle-container">
+        <span id="theme-label">Theme</span> <!-- Label above the toggle -->
+        <label class="switch">
+            <input type="checkbox" id="theme-toggle">
+            <span class="slider"></span>
+        </label>
+    </div>
+    <div id="fullscreen-toggle-container">
+        <span id="fullscreen-label">Fullscreen</span> <!-- Label above the toggle -->
+        <label class="switch">
+            <input type="checkbox" id="fullscreen-toggle">
+            <span class="slider"></span>
+        </label>
+    </div>
 
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
@@ -245,6 +283,54 @@
         const REQUEST_QUEUE = [];
         let isProcessingQueue = false;
         let lastUpdateTime = 0; // Track the last update time
+
+        let currentSpeed = 0; // Speed in mph
+        let lastAcceleration = { x: 0, y: 0, z: 0 };
+        let lastAccelerationTime = Date.now();
+
+        const redIcon = L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png', // Custom red marker icon
+            iconSize: [25, 41], // Default size
+            iconAnchor: [12, 41], // Anchor point
+            popupAnchor: [1, -34],
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png', // Default shadow
+            shadowSize: [41, 41]
+        });
+
+        const blueIcon = L.icon({
+            iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png', // Default blue marker icon
+            iconSize: [25, 41], // Default size
+            iconAnchor: [12, 41], // Anchor point
+            popupAnchor: [1, -34],
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png', // Default shadow
+            shadowSize: [41, 41]
+        });
+
+        document.getElementById("start-button").addEventListener("click", () => {
+            document.getElementById("start-button").style.display = "none"; // Hide the button
+            document.getElementById("map").style.display = "block"; // Show the map
+            document.getElementById("info").style.display = "block"; // Show the info panel
+
+            loadMap(); // Initialize the map
+            startTracking(); // Start location tracking
+        });
+
+        function loadMap() {
+            if (isMapInitialized) return; // Prevent reinitializing the map
+
+            window.map = L.map('map', { zoomControl: false, attributionControl: false });
+            window.tileLayers = {
+                light: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '' }),
+                dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '' })
+            };
+
+            // Default to light mode
+            window.tileLayers.light.addTo(window.map);
+
+            window.marker = L.marker([0, 0], { icon: blueIcon }).addTo(window.map);
+
+            isMapInitialized = true;
+        }
 
         async function processRequestQueue() {
             if (isProcessingQueue || REQUEST_QUEUE.length === 0) return;
@@ -300,13 +386,15 @@
             debounceTimer = setTimeout(func, delay);
         }
 
-        async function fetchCrossStreets(lat, lon) {
+        async function fetchNearestIntersection(lat, lon) {
             const validRoadTypes = ["Ave", "St", "Blvd", "Hwy", "Rd", "Dr", "Ln", "Ct", "Pl", "Way", "Pkwy", "Cir", "Terrace", "Alley"];
 
             try {
                 const reverseData = await makeRequest(
                     `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&addressdetails=1`
                 );
+
+                console.log("Reverse Geocoding Response:", reverseData);
 
                 if (!reverseData || !reverseData.address) {
                     throw new Error("Invalid reverse geocoding response");
@@ -322,226 +410,227 @@
                 document.getElementById("neighborhood-title").textContent = neighborhood;
 
                 const currentRoad = reverseData.address.road || "Unknown";
+                console.log("Current Road:", currentRoad);
 
-                if (currentRoad === "Unknown") {
-                    document.getElementById("cross-streets").textContent = "Location unavailable";
-                    return;
-                }
+                let nearestIntersection = currentRoad; // Default to the current road if no intersection is found
+                let minDistance = Infinity;
 
-                const delta = 0.002;
-                const searchData = await makeRequest(
-                    `https://nominatim.openstreetmap.org/search?` +
-                    `format=json&` +
-                    `street=${encodeURIComponent(currentRoad)}&` +
-                    `viewbox=${lon - delta},${lat - delta},${lon + delta},${lat + delta}&` +
-                    `bounded=1&` +
-                    `addressdetails=1&` +
-                    `limit=20`
-                );
+                if (currentRoad !== "Unknown") {
+                    const delta = 0.01; // Increase bounding box size for a larger search area
+                    const viewbox = `${lon - delta},${lat - delta},${lon + delta},${lat + delta}`;
+                    console.log("Search API URL:", `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(currentRoad)}&viewbox=${viewbox}&bounded=1&addressdetails=1&limit=50`);
+                    const searchData = await makeRequest(
+                        `https://nominatim.openstreetmap.org/search?` +
+                        `format=json&` +
+                        `q=${encodeURIComponent(currentRoad)}&` +
+                        `viewbox=${viewbox}&` +
+                        `bounded=1&` +
+                        `addressdetails=1&` +
+                        `limit=50`
+                    );
 
-                const nearbyStreets = new Set();
-                for (let place of searchData) {
-                    if (place.address && place.address.road) {
-                        const roadName = place.address.road;
-                        if (roadName.toLowerCase() !== currentRoad.toLowerCase()) {
-                            if (validRoadTypes.some(type =>
-                                roadName.toLowerCase().includes(type.toLowerCase()) ||
-                                currentRoad.toLowerCase().includes(type.toLowerCase())
-                            )) {
-                                nearbyStreets.add(roadName);
+                    console.log("Search Data Response:", searchData);
+
+                    for (let place of searchData) {
+                        if (place.address && place.address.road) {
+                            const roadName = place.address.road;
+                            console.log("Nearby Road:", roadName);
+
+                            // Ensure the road is not the same as the current road
+                            if (roadName.toLowerCase() !== currentRoad.toLowerCase()) {
+                                // Check if the road name contains valid road types
+                                if (validRoadTypes.some(type => roadName.toLowerCase().includes(type.toLowerCase()))) {
+                                    // Calculate the distance to the intersection
+                                    const distance = Math.sqrt(
+                                        Math.pow(parseFloat(place.lat) - lat, 2) +
+                                        Math.pow(parseFloat(place.lon) - lon, 2)
+                                    );
+
+                                    console.log(`Distance to ${roadName}: ${distance}`);
+
+                                    if (distance < minDistance) {
+                                        minDistance = distance;
+                                        nearestIntersection = roadName;
+                                    }
+                                }
                             }
                         }
                     }
                 }
 
-                if (nearbyStreets.size > 0) {
-                    const nearestStreet = Array.from(nearbyStreets)[0];
-                    document.getElementById("cross-streets").textContent =
-                        `${currentRoad} & ${nearestStreet}`;
-                } else {
-                    document.getElementById("cross-streets").textContent =
-                        `${currentRoad} (No intersection found)`;
-                }
+                document.getElementById("cross-streets").textContent =
+                    nearestIntersection !== currentRoad
+                        ? `${currentRoad} & ${nearestIntersection}`
+                        : currentRoad;
 
             } catch (error) {
                 console.error("Error fetching location data:", error);
-                document.getElementById("cross-streets").textContent = "Location unavailable";
-                document.getElementById("neighborhood-title").textContent = "Current Location";
+                document.getElementById("cross-streets").textContent = currentRoad; // Fallback to the current road on error
             }
         }
+    </script>
+    <script>
+        const geoOptionsHighAccuracy = {
+            enableHighAccuracy: true,
+            timeout: 30000, // Increase timeout to 30 seconds
+            maximumAge: 0
+        };
 
-        function loadMap() {
-            console.log("Initializing map...");
-            window.map = L.map('map', { zoomControl: false, attributionControl: false });
-            console.log("Map initialized:", window.map);
+        const geoOptionsFallback = {
+            enableHighAccuracy: false,
+            timeout: 30000, // Increase timeout to 30 seconds
+            maximumAge: 0
+        };
 
-            const lightTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '' // Remove attribution
-            });
-
-            const darkTileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-                attribution: '', // Remove attribution
-                subdomains: 'abcd',
-                maxZoom: 19
-            });
-
-            lightTileLayer.addTo(window.map);
-            window.tileLayers = { light: lightTileLayer, dark: darkTileLayer };
-
-            window.marker = L.marker([0, 0]).addTo(window.map);
-            console.log("Marker added to map.");
-
-            const geoJsonData = {
-                "type": "FeatureCollection",
-                "features": [
-                    {
-                        "type": "Feature",
-                        "geometry": {
-                            "type": "LineString",
-                            "coordinates": [
-                                [-122.4194, 37.7749],
-                                [-122.4094, 37.7849],
-                                [-122.3994, 37.7949]
-                            ]
-                        },
-                        "properties": {}
-                    }
-                ]
-            };
-
-            window.geoJsonLayer = L.geoJSON(geoJsonData, {
-                style: {
-                    color: 'blue', // Default color for light mode
-                    weight: 4
-                }
-            }).addTo(window.map);
-
-            isMapInitialized = true;
-        }
-
-        function updateLocation(position) {
-            if (!isMapInitialized) {
-                console.error("Map is not initialized yet.");
-                return;
-            }
-
-            const currentTime = Date.now();
-            const timeSinceLastUpdate = currentTime - lastUpdateTime;
-
-            // Only process updates if at least 2 seconds have passed
-            if (timeSinceLastUpdate < 2000) {
-                return;
-            }
-
-            lastUpdateTime = currentTime; // Update the last update time
-
-            const lat = position.coords.latitude;
-            const lon = position.coords.longitude;
-            const speed = position.coords.speed ? position.coords.speed * 2.23694 : 0;
-            const heading = position.coords.heading;
-
-            console.log(`Latitude: ${lat}, Longitude: ${lon}, Speed: ${speed}, Heading: ${heading}`);
-
-            document.getElementById("speed").textContent = speed.toFixed(1);
-
-            document.getElementById("map").style.display = "block";
-            window.map.setView([lat, lon], 19);
-            window.marker.setLatLng([lat, lon]);
-
-            if (heading !== null && !isNaN(heading)) {
-                window.marker.setRotationAngle(heading);
-            } else {
-                console.warn("Heading is unavailable. Marker rotation will not update.");
-            }
-
-            if (!lastPosition || 
-                Math.abs(lastPosition.lat - lat) > 0.0001 || 
-                Math.abs(lastPosition.lon - lon) > 0.0001) {
-                lastPosition = { lat, lon };
-                debounce(() => fetchCrossStreets(lat, lon), 2000);
-            }
-        }
-
-        function showError(error) {
-            console.error("Error getting location:", error);
-            switch (error.code) {
-                case error.PERMISSION_DENIED:
-                    alert("Location access denied by the user.");
-                    break;
-                case error.POSITION_UNAVAILABLE:
-                    alert("Location information is unavailable.");
-                    break;
-                case error.TIMEOUT:
-                    alert("The request to get your location timed out.");
-                    break;
-                default:
-                    alert("An unknown error occurred.");
-                    break;
-            }
-        }
-
-        document.getElementById("theme-toggle").addEventListener("change", (event) => {
-            const html = document.documentElement;
-            const newTheme = event.target.checked ? "dark" : "light";
-            html.setAttribute("data-theme", newTheme);
-            localStorage.setItem("theme", newTheme);
-
-            if (window.map && window.tileLayers) {
-                if (newTheme === "dark") {
-                    window.map.removeLayer(window.tileLayers.light);
-                    window.tileLayers.dark.addTo(window.map);
-
-                    // Brighten GeoJSON layer in dark mode
-                    if (window.geoJsonLayer) {
-                        window.geoJsonLayer.setStyle({ color: '#ffffff', weight: 5 }); // Brighter white and thicker lines
-                    }
-                } else {
-                    window.map.removeLayer(window.tileLayers.dark);
-                    window.tileLayers.light.addTo(window.map);
-
-                    // Reset GeoJSON layer to default in light mode
-                    if (window.geoJsonLayer) {
-                        window.geoJsonLayer.setStyle({ color: 'blue', weight: 4 });
-                    }
-                }
-            }
-        });
-
-        document.addEventListener("DOMContentLoaded", () => {
-            const savedTheme = localStorage.getItem("theme") || "light";
-            document.documentElement.setAttribute("data-theme", savedTheme);
-            document.getElementById("theme-toggle").checked = savedTheme === "dark";
-
-            if (window.map && window.tileLayers) {
-                if (savedTheme === "dark") {
-                    window.tileLayers.dark.addTo(window.map);
-                } else {
-                    window.tileLayers.light.addTo(window.map);
-                }
-            }
-        });
+        let retryCount = 0; // Track the number of retries
+        const maxRetries = 3; // Maximum number of retries
 
         function startTracking() {
-            document.getElementById("start-button").style.display = "none";
-            document.getElementById("map").style.display = "block";
-            document.getElementById("info").style.display = "block";
-
-            loadMap();
-
-            const geoOptions = {
-                enableHighAccuracy: true, // Request high accuracy mode
-                maximumAge: 0,           // Do not use cached location data
-                timeout: 10000           // Wait up to 10 seconds for a location fix
-            };
-
             if (navigator.geolocation) {
-                navigator.geolocation.watchPosition(updateLocation, showError, geoOptions);
+                navigator.geolocation.watchPosition(
+                    updateLocation,
+                    handleLocationError,
+                    geoOptionsHighAccuracy
+                );
             } else {
                 alert("Geolocation is not supported by your browser.");
             }
         }
 
-        document.getElementById("start-button").addEventListener("click", startTracking);
+        function retryGPSConnection() {
+            if (retryCount < maxRetries) {
+                retryCount++;
+                console.log(`Retrying GPS connection (${retryCount}/${maxRetries})...`);
+                navigator.geolocation.getCurrentPosition(
+                    updateLocation,
+                    (error) => {
+                        console.warn("Retry failed. Falling back to network-based location.");
+                        if (retryCount >= maxRetries) {
+                            fallbackToNetworkLocation();
+                        } else {
+                            retryGPSConnection(); // Retry again
+                        }
+                    },
+                    geoOptionsHighAccuracy
+                );
+            } else {
+                fallbackToNetworkLocation();
+            }
+        }
+
+        function fallbackToNetworkLocation() {
+            console.warn("Switching to network-based location.");
+            navigator.geolocation.watchPosition(
+                updateLocation,
+                handleLocationError,
+                geoOptionsFallback
+            );
+        }
+
+        function updateLocation(position) {
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+
+            // Reset retry count on successful location retrieval
+            retryCount = 0;
+
+            // Update the map and marker position
+            if (window.map && window.marker) {
+                window.map.setView([lat, lon], 19);
+                window.marker.setLatLng([lat, lon]);
+            }
+
+            // Use GPS speed if available
+            if (position.coords.speed !== null) {
+                currentSpeed = position.coords.speed * 2.23694; // Convert m/s to mph
+            }
+
+            // Display the updated speed
+            document.getElementById("speed").textContent = currentSpeed.toFixed(1);
+
+            // Fetch the nearest intersection
+            debounce(() => fetchNearestIntersection(lat, lon), 2000);
+        }
+
+        function handleLocationError(error) {
+            switch (error.code) {
+                case error.PERMISSION_DENIED:
+                    alert("Location permission denied. Please enable GPS and allow location access.");
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    alert("Location unavailable. Please check your GPS or network settings.");
+                    break;
+                case error.TIMEOUT:
+                    alert("Location request timed out. Please try again.");
+                    break;
+                default:
+                    alert("An unknown error occurred while retrieving location.");
+                    break;
+            }
+        }
+    </script>
+    <script>
+        const fullscreenToggle = document.getElementById("fullscreen-toggle");
+        const fullscreenLabel = document.getElementById("fullscreen-label");
+
+        fullscreenToggle.addEventListener("change", () => {
+            if (fullscreenToggle.checked) {
+                // Enter fullscreen mode
+                document.documentElement.requestFullscreen().then(() => {
+                    fullscreenLabel.textContent = "Exit Fullscreen"; // Update label
+                }).catch((err) => {
+                    console.error(`Error attempting to enable fullscreen mode: ${err.message}`);
+                    fullscreenToggle.checked = false; // Revert toggle if fullscreen fails
+                });
+            } else {
+                // Exit fullscreen mode
+                document.exitFullscreen().then(() => {
+                    fullscreenLabel.textContent = "Fullscreen"; // Update label
+                }).catch((err) => {
+                    console.error(`Error attempting to exit fullscreen mode: ${err.message}`);
+                    fullscreenToggle.checked = true; // Revert toggle if exiting fullscreen fails
+                });
+            }
+        });
+    </script>
+    <script>
+        const themeToggle = document.getElementById("theme-toggle");
+
+        // Check the user's preference and set the initial theme
+        if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
+            document.documentElement.setAttribute("data-theme", "dark");
+            themeToggle.checked = true;
+            if (window.map && window.tileLayers) {
+                window.map.removeLayer(window.tileLayers.light);
+                window.tileLayers.dark.addTo(window.map);
+            }
+            if (window.marker) {
+                window.marker.setIcon(redIcon); // Set the marker to red for dark mode
+            }
+        }
+
+        // Add an event listener to toggle the theme
+        themeToggle.addEventListener("change", () => {
+            if (themeToggle.checked) {
+                document.documentElement.setAttribute("data-theme", "dark");
+                if (window.map && window.tileLayers) {
+                    window.map.removeLayer(window.tileLayers.light);
+                    window.tileLayers.dark.addTo(window.map);
+                }
+                if (window.marker) {
+                    window.marker.setIcon(redIcon); // Set the marker to red for dark mode
+                }
+            } else {
+                document.documentElement.setAttribute("data-theme", "light");
+                if (window.map && window.tileLayers) {
+                    window.map.removeLayer(window.tileLayers.dark);
+                    window.tileLayers.light.addTo(window.map);
+                }
+                if (window.marker) {
+                    window.marker.setIcon(blueIcon); // Set the marker to blue for light mode
+                }
+            }
+        });
     </script>
 </body>
 </html>
