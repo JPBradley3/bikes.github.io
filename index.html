@@ -32,6 +32,7 @@
         #map {
             width: 100%;
             height: 100vh;
+            display: none;
             z-index: 1;
             transition: filter 0.3s ease; /* Smooth transition for theme changes */
         }
@@ -54,13 +55,12 @@
             min-width: 240px;
             backdrop-filter: blur(5px); /* Add blur effect for better readability */
             transition: background-color 0.3s ease, color 0.3s ease;
+            display: none;
         }
 
         /* Default position for portrait mode (bottom center) */
         #info {
             bottom: 15px;
-            left: 50%;
-            transform: translateX(-50%);
         }
 
         /* Landscape mode: position at the bottom left */
@@ -241,7 +241,7 @@
 </head>
 <body>
     <button id="start-button">Start Tracking</button>
-    <div id="map" style="width: 100%; height: 100vh;"></div>
+    <div id="map" style="width: 100%; height: 100vh; display: none;"></div>
     <div id="info" style="display: none;">
         <h1 id="neighborhood-title">Loading Area...</h1>
         <div class="data-container">
@@ -307,16 +307,16 @@
         });
 
         document.getElementById("start-button").addEventListener("click", () => {
-            document.getElementById("start-button").style.display = "none";
-            document.getElementById("map").style.display = "block";
-            document.getElementById("info").style.display = "block";
+            document.getElementById("start-button").style.display = "none"; // Hide the button
+            document.getElementById("map").style.display = "block"; // Show the map
+            document.getElementById("info").style.display = "block"; // Show the info panel
 
-            loadMap();
-            startTracking();
+            loadMap(); // Initialize the map
+            startTracking(); // Start location tracking
         });
 
         function loadMap() {
-            if (isMapInitialized) return;
+            if (isMapInitialized) return; // Prevent reinitializing the map
 
             window.map = L.map('map', { zoomControl: false, attributionControl: false });
             window.tileLayers = {
@@ -487,13 +487,9 @@
 
         function startTracking() {
             if (navigator.geolocation) {
-                // Try high-accuracy GPS first
                 navigator.geolocation.watchPosition(
                     updateLocation,
-                    (error) => {
-                        console.warn("High-accuracy GPS failed. Falling back to network-based location.");
-                        retryGPSConnection(); // Retry GPS connection
-                    },
+                    handleLocationError,
                     geoOptionsHighAccuracy
                 );
             } else {
@@ -638,3 +634,4 @@
     </script>
 </body>
 </html>
+
