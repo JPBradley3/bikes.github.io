@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <style>
         :root {
-            --bg-color: rgba(255, 255, 255, 0.95);
+            --bg-color: rgba(255, 255, 255, 0.75); /* Slightly more transparent white for light mode */
             --text-color: #2c3e50;
             --label-color: #666;
             --border-color: #e0e0e0;
@@ -15,11 +15,11 @@
         }
 
         [data-theme="dark"] {
-            --bg-color: rgba(33, 33, 33, 0.95);
-            --text-color: #ffffff;
-            --label-color: #cccccc;
-            --border-color: #444444;
-            --hover-color: #3498db;
+            --bg-color: rgba(50, 50, 50, 0.75); /* Slightly more transparent dark background for dark mode */
+            --text-color: #b0b0b0; /* Dimmer white text */
+            --label-color: #909090; /* Dimmer label color */
+            --border-color: #666666; /* Dimmer border color */
+            --hover-color: #4a8bb5; /* Dimmer hover color */
         }
 
         body, html {
@@ -37,60 +37,111 @@
 
         #info {
             position: absolute;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: var(--bg-color);
-            padding: 15px 25px;
-            border-radius: 10px;
+            background: var(--bg-color); /* Use the updated transparent background */
+            padding: 10px 20px;
+            border-radius: 8px;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
             z-index: 1000;
-            min-width: 280px;
-            backdrop-filter: blur(5px);
+            min-width: 240px;
+            backdrop-filter: blur(5px); /* Add blur effect for better readability */
             transition: background-color 0.3s ease, color 0.3s ease;
         }
 
-        #theme-toggle {
+        /* Default position for portrait mode (bottom center) */
+        #info {
+            bottom: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        /* Landscape mode: position at the bottom left */
+        @media (orientation: landscape) {
+            #info {
+                bottom: 15px;
+                left: 15px;
+                transform: none;
+            }
+        }
+
+        #theme-toggle-container {
             position: absolute;
             top: 10px;
             right: 10px;
-            background: none;
-            border: none;
-            color: var(--text-color);
+            z-index: 1000;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
             cursor: pointer;
-            font-size: 1.2em;
-            padding: 5px;
-            z-index: 1;
-            transition: color 0.3s ease;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: var(--border-color);
+            transition: 0.4s;
+            border-radius: 24px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: var(--hover-color);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(26px);
         }
 
         #neighborhood-title {
-            margin: 0 0 15px 0;
-            font-size: 1.5em;
+            margin: 0 0 10px 0; /* Reduced margin */
+            font-size: 1.2em; /* Smaller font size */
             color: var(--text-color);
             text-align: center;
-            border-bottom: 2px solid var(--border-color);
-            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border-color); /* Thinner border */
+            padding-bottom: 8px; /* Reduced padding */
             transition: color 0.3s ease;
         }
 
         .data-container {
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 8px; /* Reduced gap */
         }
 
         .data-row {
             display: flex;
             align-items: center;
-            gap: 10px;
-            font-size: 1.1em;
+            gap: 8px; /* Reduced gap */
+            font-size: 0.9em; /* Smaller font size */
         }
 
         .data-row label {
             color: var(--label-color);
             font-weight: 500;
-            min-width: 140px;
+            min-width: 120px; /* Reduced width */
             transition: color 0.3s ease;
         }
 
@@ -102,15 +153,16 @@
 
         #speed {
             color: var(--text-color);
-            font-weight: 600;
-            min-width: 50px;
+            font-weight: 700; /* Increased font weight */
+            font-size: 1.5em; /* Larger font size for speed */
+            min-width: 60px;
             text-align: right;
             transition: color 0.3s ease;
         }
 
         .unit {
             color: var(--label-color);
-            font-size: 0.9em;
+            font-size: 0.8em; /* Smaller font size for unit */
             transition: color 0.3s ease;
         }
 
@@ -119,8 +171,8 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            padding: 15px 30px;
-            font-size: 1.2em;
+            padding: 12px 25px; /* Reduced padding */
+            font-size: 1em; /* Smaller font size */
             font-weight: 600;
             color: white;
             background-color: #3498db;
@@ -143,23 +195,28 @@
 
         @media (max-width: 600px) {
             #info {
-                width: 85%;
-                padding: 12px;
+                width: 90%; /* Adjusted width for smaller screens */
+                padding: 8px; /* Reduced padding */
             }
 
             .data-row {
-                font-size: 1em;
+                font-size: 0.8em; /* Smaller font size for small screens */
             }
 
             #neighborhood-title {
-                font-size: 1.3em;
+                font-size: 1em; /* Smaller title font size */
             }
         }
     </style>
 </head>
 <body>
     <div id="info" style="display: none;">
-        <button id="theme-toggle">🌓</button>
+        <div id="theme-toggle-container">
+            <label class="switch">
+                <input type="checkbox" id="theme-toggle">
+                <span class="slider"></span>
+            </label>
+        </div>
         <h1 id="neighborhood-title">Loading Area...</h1>
         <div class="data-container">
             <div class="data-row">
@@ -177,6 +234,7 @@
     <button id="start-button">Start Tracking</button>
 
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-rotatedmarker/0.2.0/leaflet.rotatedMarker.min.js"></script>
     <script>
         let lastPosition = null;
@@ -186,6 +244,7 @@
         const MIN_REQUEST_INTERVAL = 1500; // 1.5 seconds minimum between requests
         const REQUEST_QUEUE = [];
         let isProcessingQueue = false;
+        let lastUpdateTime = 0; // Track the last update time
 
         async function processRequestQueue() {
             if (isProcessingQueue || REQUEST_QUEUE.length === 0) return;
@@ -230,7 +289,9 @@
         function makeRequest(url) {
             return new Promise((resolve, reject) => {
                 REQUEST_QUEUE.push({ url, resolve, reject });
-                processRequestQueue();
+                processRequestQueue().catch(error => {
+                    console.error("Error processing request queue:", error);
+                });
             });
         }
 
@@ -243,7 +304,6 @@
             const validRoadTypes = ["Ave", "St", "Blvd", "Hwy", "Rd", "Dr", "Ln", "Ct", "Pl", "Way", "Pkwy", "Cir", "Terrace", "Alley"];
 
             try {
-                // Step 1: Reverse geocoding to get current location info
                 const reverseData = await makeRequest(
                     `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&addressdetails=1`
                 );
@@ -252,7 +312,6 @@
                     throw new Error("Invalid reverse geocoding response");
                 }
 
-                // Update neighborhood title
                 const neighborhood = reverseData.address.neighbourhood ||
                                      reverseData.address.suburb ||
                                      reverseData.address.district ||
@@ -269,8 +328,7 @@
                     return;
                 }
 
-                // Step 2: Search for nearby roads
-                const delta = 0.002; // Smaller search area for more relevant results (~200m)
+                const delta = 0.002;
                 const searchData = await makeRequest(
                     `https://nominatim.openstreetmap.org/search?` +
                     `format=json&` +
@@ -281,11 +339,6 @@
                     `limit=20`
                 );
 
-                if (!Array.isArray(searchData)) {
-                    throw new Error("Invalid search response");
-                }
-
-                // Find nearby intersecting streets
                 const nearbyStreets = new Set();
                 for (let place of searchData) {
                     if (place.address && place.address.road) {
@@ -301,37 +354,6 @@
                     }
                 }
 
-                // If no intersecting streets are found, perform a broader search
-                if (nearbyStreets.size === 0) {
-                    const broaderDelta = 0.005; // Larger search area (~500m)
-                    const broaderSearch = await makeRequest(
-                        `https://nominatim.openstreetmap.org/search?` +
-                        `format=json&` +
-                        `q=intersection&` +
-                        `viewbox=${lon - broaderDelta},${lat - broaderDelta},${lon + broaderDelta},${lat + broaderDelta}&` +
-                        `bounded=1&` +
-                        `addressdetails=1&` +
-                        `limit=20`
-                    );
-
-                    if (Array.isArray(broaderSearch)) {
-                        for (let place of broaderSearch) {
-                            if (place.address && place.address.road) {
-                                const roadName = place.address.road;
-                                if (roadName.toLowerCase() !== currentRoad.toLowerCase()) {
-                                    if (validRoadTypes.some(type =>
-                                        roadName.toLowerCase().includes(type.toLowerCase()) ||
-                                        currentRoad.toLowerCase().includes(type.toLowerCase())
-                                    )) {
-                                        nearbyStreets.add(roadName);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Update the display
                 if (nearbyStreets.size > 0) {
                     const nearestStreet = Array.from(nearbyStreets)[0];
                     document.getElementById("cross-streets").textContent =
@@ -349,31 +371,50 @@
         }
 
         function loadMap() {
-            const isDarkMode = document.documentElement.getAttribute("data-theme") === "dark";
+            console.log("Initializing map...");
+            window.map = L.map('map', { zoomControl: false, attributionControl: false });
+            console.log("Map initialized:", window.map);
 
-            // Initialize the map without zoom control
-            window.map = L.map('map', {
-                zoomControl: false // Disable zoom buttons
+            const lightTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '' // Remove attribution
             });
 
-            // Add a black-and-white tile layer
-            const blackAndWhiteTileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
+            const darkTileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '', // Remove attribution
                 subdomains: 'abcd',
                 maxZoom: 19
             });
 
-            // Add the tile layer to the map
-            blackAndWhiteTileLayer.addTo(window.map);
+            lightTileLayer.addTo(window.map);
+            window.tileLayers = { light: lightTileLayer, dark: darkTileLayer };
 
-            // Add a rotated marker icon
-            const icon = L.icon({
-                iconUrl: 'https://cdn-icons-png.flaticon.com/512/684/684908.png',
-                iconSize: [25, 25]
-            });
+            window.marker = L.marker([0, 0]).addTo(window.map);
+            console.log("Marker added to map.");
 
-            // Use L.marker with the rotatedMarker plugin
-            window.marker = L.marker([0, 0], { icon, rotationAngle: 0 }).addTo(window.map);
+            const geoJsonData = {
+                "type": "FeatureCollection",
+                "features": [
+                    {
+                        "type": "Feature",
+                        "geometry": {
+                            "type": "LineString",
+                            "coordinates": [
+                                [-122.4194, 37.7749],
+                                [-122.4094, 37.7849],
+                                [-122.3994, 37.7949]
+                            ]
+                        },
+                        "properties": {}
+                    }
+                ]
+            };
+
+            window.geoJsonLayer = L.geoJSON(geoJsonData, {
+                style: {
+                    color: 'blue', // Default color for light mode
+                    weight: 4
+                }
+            }).addTo(window.map);
 
             isMapInitialized = true;
         }
@@ -384,29 +425,35 @@
                 return;
             }
 
+            const currentTime = Date.now();
+            const timeSinceLastUpdate = currentTime - lastUpdateTime;
+
+            // Only process updates if at least 2 seconds have passed
+            if (timeSinceLastUpdate < 2000) {
+                return;
+            }
+
+            lastUpdateTime = currentTime; // Update the last update time
+
             const lat = position.coords.latitude;
             const lon = position.coords.longitude;
-            const speed = position.coords.speed ? position.coords.speed * 2.23694 : 0; // Convert m/s to mph
-            const heading = position.coords.heading; // Heading in degrees
+            const speed = position.coords.speed ? position.coords.speed * 2.23694 : 0;
+            const heading = position.coords.heading;
 
-            // Log the location for debugging
             console.log(`Latitude: ${lat}, Longitude: ${lon}, Speed: ${speed}, Heading: ${heading}`);
 
-            // Update speed display
             document.getElementById("speed").textContent = speed.toFixed(1);
 
-            // Update the map view to center on the user's location
-            window.map.setView([lat, lon], 19); // Zoom level 19 for maximum zoom
+            document.getElementById("map").style.display = "block";
+            window.map.setView([lat, lon], 19);
             window.marker.setLatLng([lat, lon]);
 
-            // Rotate the marker if heading is available
             if (heading !== null && !isNaN(heading)) {
                 window.marker.setRotationAngle(heading);
             } else {
                 console.warn("Heading is unavailable. Marker rotation will not update.");
             }
 
-            // Only update cross streets if position has changed significantly
             if (!lastPosition || 
                 Math.abs(lastPosition.lat - lat) > 0.0001 || 
                 Math.abs(lastPosition.lon - lon) > 0.0001) {
@@ -417,47 +464,76 @@
 
         function showError(error) {
             console.error("Error getting location:", error);
-            alert("Error retrieving location. Please enable location services.");
+            switch (error.code) {
+                case error.PERMISSION_DENIED:
+                    alert("Location access denied by the user.");
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    alert("Location information is unavailable.");
+                    break;
+                case error.TIMEOUT:
+                    alert("The request to get your location timed out.");
+                    break;
+                default:
+                    alert("An unknown error occurred.");
+                    break;
+            }
         }
 
-        // Update the map style when the theme changes
-        document.getElementById("theme-toggle").addEventListener("click", () => {
+        document.getElementById("theme-toggle").addEventListener("change", (event) => {
             const html = document.documentElement;
-            const currentTheme = html.getAttribute("data-theme");
-            const newTheme = currentTheme === "dark" ? "light" : "dark";
+            const newTheme = event.target.checked ? "dark" : "light";
             html.setAttribute("data-theme", newTheme);
             localStorage.setItem("theme", newTheme);
 
-            // Automatically refresh the page after changing the theme
-            location.reload();
+            if (window.map && window.tileLayers) {
+                if (newTheme === "dark") {
+                    window.map.removeLayer(window.tileLayers.light);
+                    window.tileLayers.dark.addTo(window.map);
+
+                    // Brighten GeoJSON layer in dark mode
+                    if (window.geoJsonLayer) {
+                        window.geoJsonLayer.setStyle({ color: '#ffffff', weight: 5 }); // Brighter white and thicker lines
+                    }
+                } else {
+                    window.map.removeLayer(window.tileLayers.dark);
+                    window.tileLayers.light.addTo(window.map);
+
+                    // Reset GeoJSON layer to default in light mode
+                    if (window.geoJsonLayer) {
+                        window.geoJsonLayer.setStyle({ color: 'blue', weight: 4 });
+                    }
+                }
+            }
         });
 
-        // Load saved theme preference
         document.addEventListener("DOMContentLoaded", () => {
             const savedTheme = localStorage.getItem("theme") || "light";
             document.documentElement.setAttribute("data-theme", savedTheme);
+            document.getElementById("theme-toggle").checked = savedTheme === "dark";
+
+            if (window.map && window.tileLayers) {
+                if (savedTheme === "dark") {
+                    window.tileLayers.dark.addTo(window.map);
+                } else {
+                    window.tileLayers.light.addTo(window.map);
+                }
+            }
         });
 
         function startTracking() {
-            // Hide the start button and show the map and info panel
             document.getElementById("start-button").style.display = "none";
             document.getElementById("map").style.display = "block";
             document.getElementById("info").style.display = "block";
 
-            // Initialize the map
             loadMap();
 
-            // Detect if the user is on a mobile device
-            const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-
-            // Set geolocation options for high accuracy
             const geoOptions = {
-                enableHighAccuracy: true, // Ensure high accuracy
-                maximumAge: 0,           // Prevent cached location data
-                timeout: isMobile ? 10000 : 30000 // Shorter timeout for mobile
+                enableHighAccuracy: true, // Request high accuracy mode
+                maximumAge: 0,           // Do not use cached location data
+                timeout: 10000           // Wait up to 10 seconds for a location fix
             };
 
-            // Start watching the user's location
             if (navigator.geolocation) {
                 navigator.geolocation.watchPosition(updateLocation, showError, geoOptions);
             } else {
@@ -465,8 +541,8 @@
             }
         }
 
-        // Attach the event listener to the Start Tracking button
         document.getElementById("start-button").addEventListener("click", startTracking);
     </script>
 </body>
 </html>
+
