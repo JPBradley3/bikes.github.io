@@ -349,9 +349,14 @@
         });
 
         function loadMap() {
-            if (isMapInitialized) return; // Prevent reinitializing the map
+            if (isMapInitialized) return;
 
-            window.map = L.map('map', { zoomControl: false, attributionControl: false });
+            window.map = L.map('map', { 
+                zoomControl: false, 
+                attributionControl: false,
+                backgroundColor: '#000000'  // Add this line for black background
+            });
+            
             window.tileLayers = {
                 light: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '' }),
                 dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '' })
@@ -655,18 +660,20 @@
                 if (window.map && window.tileLayers) {
                     window.map.removeLayer(window.tileLayers.light);
                     window.tileLayers.dark.addTo(window.map);
+                    document.querySelector('.leaflet-container').style.backgroundColor = '#000000';  // Add this line
                 }
                 if (window.marker) {
-                    window.marker.setIcon(redIcon); // Set the marker to red for dark mode
+                    window.marker.setIcon(redIcon);
                 }
             } else {
                 document.documentElement.setAttribute("data-theme", "light");
                 if (window.map && window.tileLayers) {
                     window.map.removeLayer(window.tileLayers.dark);
                     window.tileLayers.light.addTo(window.map);
+                    document.querySelector('.leaflet-container').style.backgroundColor = '#ffffff';  // Add this line
                 }
                 if (window.marker) {
-                    window.marker.setIcon(blueIcon); // Set the marker to blue for light mode
+                    window.marker.setIcon(blueIcon);
                 }
             }
         });
