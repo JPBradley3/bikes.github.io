@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Bicycle Tracker</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <style>
@@ -15,16 +15,25 @@
         }
 
         [data-theme="dark"] {
-            --bg-color: rgba(50, 50, 50, 0.75); /* Slightly more transparent dark background for dark mode */
-            --text-color: #b0b0b0; /* Dimmer white text */
-            --label-color: #909090; /* Dimmer label color */
-            --border-color: #666666; /* Dimmer border color */
-            --hover-color: #4a8bb5; /* Dimmer hover color */
+            --bg-color: transparent; /* Ensure the dark theme background is transparent */
+            background-color: transparent; /* Make the entire page background transparent */
+            color: var(--text-color); /* Ensure text color matches the dark theme */
+        }
+
+        html, body {
+            background-color: transparent; /* Fully transparent background */
+            color: var(--text-color); /* Use the theme's text color */
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden; /* Prevent scrolling */
+            box-sizing: border-box; /* Ensure consistent box model */
         }
 
         body, html {
             margin: 0;
             padding: 0;
+            overflow-x: hidden; /* Prevent horizontal scrolling */
             height: 100%;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             padding-top: env(safe-area-inset-top);
@@ -33,15 +42,26 @@
             padding-left: env(safe-area-inset-left);
         }
 
+        body {
+            font-size: 1rem; /* Default font size */
+            background-color: var(--bg-color); /* Use the theme's background color */
+        }
+
+        @media (max-width: 600px) {
+            body {
+                font-size: 0.9rem; /* Slightly smaller font size for small screens */
+            }
+        }
+
         #map {
             width: 100%;
-            height: 100vh;
-            z-index: 1;
-            transition: filter 0.3s ease; /* Smooth transition for theme changes */
-            padding-top: env(safe-area-inset-top);
-            padding-right: env(safe-area-inset-right);
-            padding-bottom: env(safe-area-inset-bottom);
-            padding-left: env(safe-area-inset-left);
+            height: 100vh; /* Full height of the viewport */
+            margin: 0;
+            padding: 0;
+            position: absolute; /* Ensure the map is positioned behind other elements */
+            top: 0;
+            left: 0;
+            z-index: 0; /* Place the map behind other elements */
         }
 
         [data-theme="dark"] #map {
@@ -54,16 +74,17 @@
 
         #info {
             position: absolute;
-            bottom: 15px; /* Position it at the bottom */
-            left: 50%; /* Center horizontally */
-            transform: translateX(-50%); /* Adjust for horizontal centering */
-            background: var(--bg-color); /* Use the updated transparent background */
+            bottom: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--bg-color); /* Keep the card background */
             padding: 10px 20px;
             border-radius: 8px;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            z-index: 1000;
+            z-index: 1000; /* Ensure the card is above the map */
             min-width: 240px;
-            backdrop-filter: blur(5px); /* Add blur effect for better readability */
+            max-width: 90%; /* Prevent the info panel from being too wide */
+            backdrop-filter: blur(5px);
             transition: background-color 0.3s ease, color 0.3s ease;
         }
 
@@ -82,8 +103,8 @@
             flex-direction: column; /* Stack label above the toggle */
             align-items: center; /* Center align the label and toggle */
             position: absolute;
-            z-index: 1000;
-            background: rgba(255, 255, 255, 0.8); /* Semi-transparent background for buttons */
+            z-index: 1000; /* Ensure these elements are above the map */
+            background: transparent; /* Fully transparent background */
             border-radius: 8px;
             padding: 5px;
         }
@@ -102,15 +123,20 @@
         #fullscreen-label {
             margin-bottom: 5px; /* Add spacing between the label and toggle */
             font-size: 0.9em; /* Slightly smaller font size */
-            color: var(--text-color); /* Use the theme's text color */
+            color: #666; /* Grayscale text color */
             text-align: center;
+            transition: color 0.3s ease;
         }
 
         .switch {
             position: relative;
             display: inline-block;
-            width: 50px;
-            height: 24px;
+            width: 50px; /* Width of the toggle */
+            height: 30px; /* Height of the toggle */
+            background-color: #ccc; /* Light gray background for the toggle */
+            border-radius: 15px; /* Rounded rectangle */
+            transition: background-color 0.3s ease;
+            cursor: pointer;
         }
 
         .switch input {
@@ -121,35 +147,22 @@
 
         .slider {
             position: absolute;
-            cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: #808080; /* Grayscale background */
-            transition: 0.4s;
-            border-radius: 24px;
-        }
-
-        .slider:before {
-            position: absolute;
-            content: "";
-            height: 18px;
-            width: 18px;
-            left: 3px;
-            bottom: 3px;
-            background-color: #d3d3d3; /* Light gray toggle knob */
-            transition: 0.4s;
-            border-radius: 50%;
+            top: 3px; /* Center the square vertically */
+            left: 3px; /* Initial position of the square */
+            width: 24px; /* Width of the square */
+            height: 24px; /* Height of the square */
+            background-color: #666; /* Dark gray color for the slider */
+            border-radius: 8px; /* Rounded square */
+            transition: transform 0.3s ease, background-color 0.3s ease;
         }
 
         input:checked + .slider {
-            background-color: #a0a0a0; /* Lighter grayscale when toggled */
+            transform: translateX(20px); /* Move the square to the right when toggled */
+            background-color: #333; /* Darker gray for the slider when toggled */
         }
 
-        input:checked + .slider:before {
-            background-color: #f0f0f0; /* Even lighter gray for the knob when toggled */
-            transform: translateX(26px);
+        .switch:hover {
+            background-color: #bbb; /* Slightly darker gray on hover */
         }
 
         #neighborhood-title {
@@ -231,17 +244,23 @@
         }
 
         @media (max-width: 600px) {
+            #map {
+                height: 80vh; /* Adjust map height for smaller screens */
+            }
+
             #info {
-                width: 90%; /* Adjusted width for smaller screens */
-                padding: 8px; /* Reduced padding */
+                width: 90%; /* Make the info panel narrower */
+                padding: 8px; /* Reduce padding */
+                font-size: 0.9em; /* Adjust font size */
+            }
+
+            #start-button {
+                font-size: 0.9em; /* Smaller font size for the button */
+                padding: 10px 20px; /* Adjust padding */
             }
 
             .data-row {
-                font-size: 0.8em; /* Smaller font size for small screens */
-            }
-
-            #neighborhood-title {
-                font-size: 1em; /* Smaller title font size */
+                font-size: 0.8em; /* Smaller font size for data rows */
             }
         }
 
@@ -516,7 +535,6 @@
                 navigator.geolocation.getCurrentPosition(
                     updateLocation,
                     (error) => {
-                        console.warn("Retry failed. Falling back to network-based location.");
                         if (retryCount >= maxRetries) {
                             fallbackToNetworkLocation();
                         } else {
@@ -606,6 +624,10 @@
                     fullscreenToggle.checked = true; // Revert toggle if exiting fullscreen fails
                 });
             }
+        });
+
+        document.documentElement.requestFullscreen({ navigationUI: "hide" }).catch((err) => {
+            console.error(`Error attempting to enable fullscreen mode: ${err.message}`);
         });
     </script>
     <script>
