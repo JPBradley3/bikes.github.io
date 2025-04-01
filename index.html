@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <style>
         :root {
-            --bg-color: rgba(255, 255, 255, 0.75); /* Slightly more transparent white for light mode */
+            --bg-color: rgba(255, 255, 255, 0.75);
             --text-color: #2c3e50;
             --label-color: #666;
             --border-color: #e0e0e0;
@@ -15,9 +15,11 @@
         }
 
         [data-theme="dark"] {
-            --bg-color: transparent; /* Ensure the dark theme background is transparent */
-            background-color: transparent; /* Make the entire page background transparent */
-            color: var(--text-color); /* Ensure text color matches the dark theme */
+            --bg-color: rgba(0, 0, 0, 0.75);
+            --text-color: #e4e4e4;
+            --label-color: #b0b0b0;
+            --border-color: #404040;
+            --hover-color: #3498db;
         }
 
         html, body {
