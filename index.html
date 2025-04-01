@@ -168,12 +168,12 @@
         }
 
         #neighborhood-title {
-            margin: 0 0 10px 0; /* Reduced margin */
-            font-size: 1.2em; /* Smaller font size */
+            margin: 0 0 10px 0;
+            font-size: 1.6em;  /* Increased from 1.2em */
             color: var(--text-color);
             text-align: center;
-            border-bottom: 1px solid var(--border-color); /* Thinner border */
-            padding-bottom: 8px; /* Reduced padding */
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 8px;
             transition: color 0.3s ease;
         }
 
@@ -205,8 +205,8 @@
 
         #speed {
             color: var(--text-color);
-            font-weight: 700; /* Increased font weight */
-            font-size: 1.5em; /* Larger font size for speed */
+            font-weight: 700;
+            font-size: 2em;  /* Increased from 1.5em */
             min-width: 60px;
             text-align: right;
             transition: color 0.3s ease;
@@ -260,6 +260,14 @@
                 font-size: 0.9em; /* Smaller font size for the button */
                 padding: 10px 20px; /* Adjust padding */
             }
+
+            #neighborhood-title {
+                font-size: 1.4em;  /* Slightly smaller on mobile but still larger than original */
+    }
+
+            #speed {
+                font-size: 1.8em;  /* Slightly smaller on mobile but still larger than original */
+    }
 
             .data-row {
                 font-size: 0.8em; /* Smaller font size for data rows */
