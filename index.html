@@ -515,105 +515,128 @@
             }
         }
     </script>
-    <script>
-        const geoOptionsHighAccuracy = {
-            enableHighAccuracy: true,
-            timeout: 30000, // Increase timeout to 30 seconds
-            maximumAge: 0
-        };
+    <!-- REPLACE THIS ENTIRE SCRIPT BLOCK IN YOUR FILE -->
+<script>
+    const geoOptions = {
+        enableHighAccuracy: true,
+        timeout: 20000,
+        maximumAge: 0
+    };
 
-        const geoOptionsFallback = {
-            enableHighAccuracy: false,
-            timeout: 30000, // Increase timeout to 30 seconds
-            maximumAge: 0
-        };
+    // --- Animation State Variables ---
+    let targetLatLng = null;    // The destination coordinate from GPS
+    let currentLatLng = null;   // The marker's current animated position
+    let animationFrameId = null; // To control the animation loop
+    const animationSpeed = 0.1; // Determines how fast the marker catches up (0.05 = slower, 0.2 = faster)
+    // --- End Animation State Variables ---
 
-        let retryCount = 0; // Track the number of retries
-        const maxRetries = 3; // Maximum number of retries
 
-        function startTracking() {
-            if (navigator.geolocation) {
-                navigator.geolocation.watchPosition(
-                    updateLocation,
-                    handleLocationError,
-                    geoOptionsHighAccuracy
-                );
-            } else {
-                alert("Geolocation is not supported by your browser.");
-            }
-        }
-
-        function retryGPSConnection() {
-            if (retryCount < maxRetries) {
-                retryCount++;
-                console.log(`Retrying GPS connection (${retryCount}/${maxRetries})...`);
-                navigator.geolocation.getCurrentPosition(
-                    updateLocation,
-                    (error) => {
-                        if (retryCount >= maxRetries) {
-                            fallbackToNetworkLocation();
-                        } else {
-                            retryGPSConnection(); // Retry again
-                        }
-                    },
-                    geoOptionsHighAccuracy
-                );
-            } else {
-                fallbackToNetworkLocation();
-            }
-        }
-
-        function fallbackToNetworkLocation() {
-            console.warn("Switching to network-based location.");
+    function startTracking() {
+        if (navigator.geolocation) {
             navigator.geolocation.watchPosition(
                 updateLocation,
                 handleLocationError,
-                geoOptionsFallback
+                geoOptions
             );
+        } else {
+            alert("Geolocation is not supported by your browser.");
         }
+    }
 
-        function updateLocation(position) {
-            const lat = position.coords.latitude;
-            const lon = position.coords.longitude;
+    // MODIFIED: This function now triggers animations instead of jumping the map.
+    function updateLocation(position) {
+        const lat = position.coords.latitude;
+        const lon = position.coords.longitude;
+        const newLatLng = L.latLng(lat, lon); // Use Leaflet's LatLng object for easier calculations
 
-            // Reset retry count on successful location retrieval
-            retryCount = 0;
+        // If this is the very first location update, jump the map and marker to the start position.
+        if (!targetLatLng) {
+            // Jump map to the initial position
+            window.map.setView(newLatLng, 19); 
+            // Set the marker's initial position
+            window.marker.setLatLng(newLatLng);
+            // Initialize our animation state variables
+            targetLatLng = newLatLng;
+            currentLatLng = newLatLng;
+        } else {
+            // For all subsequent updates, update the target and animate.
+            targetLatLng = newLatLng;
 
-            // Update the map and marker position
-            if (window.map && window.marker) {
-                window.map.setView([lat, lon], 19);
-                window.marker.setLatLng([lat, lon]);
-            }
+            // Animate the map view smoothly to the new target.
+            window.map.flyTo(targetLatLng, 19, {
+                animate: true,
+                duration: 1.5 // Animation duration in seconds
+            });
 
-            // Use GPS speed if available
-            if (position.coords.speed !== null) {
-                currentSpeed = position.coords.speed * 2.23694; // Convert m/s to mph
-            }
-
-            // Display the updated speed
-            document.getElementById("speed").textContent = currentSpeed.toFixed(1);
-
-            // Fetch the nearest intersection
-            debounce(() => fetchNearestIntersection(lat, lon), 2000);
-        }
-
-        function handleLocationError(error) {
-            switch (error.code) {
-                case error.PERMISSION_DENIED:
-                    alert("Location permission denied. Please enable GPS and allow location access.");
-                    break;
-                case error.POSITION_UNAVAILABLE:
-                    alert("Location unavailable. Please check your GPS or network settings.");
-                    break;
-                case error.TIMEOUT:
-                    alert("Location request timed out. Please try again.");
-                    break;
-                default:
-                    alert("An unknown error occurred while retrieving location.");
-                    break;
+            // Start the marker animation loop if it's not already running.
+            if (!animationFrameId) {
+                animationFrameId = requestAnimationFrame(animateMarker);
             }
         }
-    </script>
+
+        // Use GPS speed if available
+        if (position.coords.speed !== null) {
+            currentSpeed = position.coords.speed * 2.23694; // Convert m/s to mph
+        }
+
+        // Display the updated speed
+        document.getElementById("speed").textContent = currentSpeed.toFixed(1);
+
+        // Fetch the nearest intersection (this remains the same)
+        debounce(() => fetchNearestIntersection(lat, lon), 2000);
+    }
+    
+    // NEW: The core animation loop for the marker.
+    function animateMarker() {
+        if (!currentLatLng || !targetLatLng) {
+            animationFrameId = null;
+            return;
+        }
+
+        // Calculate the distance to the target. If it's very small, stop the animation.
+        const distance = currentLatLng.distanceTo(targetLatLng);
+
+        if (distance < 1) { // Stop if less than 1 meter away
+            // Snap to the final position to avoid tiny offsets
+            window.marker.setLatLng(targetLatLng);
+            currentLatLng = targetLatLng; // Sync state
+            // Stop the animation loop
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+            return;
+        }
+
+        // Interpolate: Calculate the next position, moving a fraction of the way to the target
+        const newLat = currentLatLng.lat + (targetLatLng.lat - currentLatLng.lat) * animationSpeed;
+        const newLng = currentLatLng.lng + (targetLatLng.lng - currentLatLng.lng) * animationSpeed;
+        currentLatLng = L.latLng(newLat, newLng);
+
+        // Update the marker's actual position on the map
+        window.marker.setLatLng(currentLatLng);
+
+        // Request the next frame to continue the animation
+        animationFrameId = requestAnimationFrame(animateMarker);
+    }
+
+
+    function handleLocationError(error) {
+        // Your existing error handling function (no changes needed here)
+        switch (error.code) {
+            case error.PERMISSION_DENIED:
+                alert("Location permission denied. Please enable GPS and allow location access.");
+                break;
+            case error.POSITION_UNAVAILABLE:
+                alert("Location unavailable. Please check your GPS or network settings.");
+                break;
+            case error.TIMEOUT:
+                alert("Location request timed out. Please try again.");
+                break;
+            default:
+                alert("An unknown error occurred while retrieving location.");
+                break;
+        }
+    }
+</script>
     <script>
         const fullscreenToggle = document.getElementById("fullscreen-toggle");
         const fullscreenLabel = document.getElementById("fullscreen-label");
