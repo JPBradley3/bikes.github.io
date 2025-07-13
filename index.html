@@ -528,6 +528,7 @@
     let currentLatLng = null;   // The marker's current animated position
     let animationFrameId = null; // To control the animation loop
     const animationSpeed = 0.1; // Determines how fast the marker catches up (0.05 = slower, 0.2 = faster)
+    let currentHeading = 0; // Current compass heading
     // --- End Animation State Variables ---
 
 
@@ -540,6 +541,19 @@
             );
         } else {
             alert("Geolocation is not supported by your browser.");
+        }
+        
+        // Add device orientation listener for compass heading
+        if (window.DeviceOrientationEvent) {
+            window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+            window.addEventListener('deviceorientation', handleOrientation, true);
+        }
+    }
+    
+    function handleOrientation(event) {
+        if (event.alpha !== null && window.map) {
+            const heading = 360 - event.alpha; // Convert to compass heading
+            window.map.setBearing(heading);
         }
     }
 
@@ -577,6 +591,12 @@
         // Use GPS speed if available
         if (position.coords.speed !== null) {
             currentSpeed = position.coords.speed * 2.23694; // Convert m/s to mph
+        }
+
+        // Use GPS heading if available
+        if (position.coords.heading !== null) {
+            currentHeading = position.coords.heading;
+            window.map.setBearing(currentHeading);
         }
 
         // Display the updated speed
